@@ -257,7 +257,7 @@ def audio_tag(word, media_dir):
         get_audio(word, str(dest))
     return f"[sound:{name}]"
 
-def build_note(row, media_dir, column_name, max_def=5):
+def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=3):
     # 1st make sure that we have a word. 
     word = clean_query(row[column_name])
     if word is None:
@@ -300,7 +300,7 @@ def build_note(row, media_dir, column_name, max_def=5):
         usage = user_phrases_html(given_phrase, word)
     else:
         try:
-            sents = get_sentences(word)
+            sents = get_sentences(word, min_chars=min_chars, max_results=max_results)
         except Exception as e:
             print(f"Warning: no sentences for '{word}' ({e}).")
             sents = []
@@ -443,9 +443,12 @@ def main():
     parser.add_argument("--tags", nargs="*", default=[],
                         help="Tags added to every note (e.g. --tags HSK3 week1)")
     parser.add_argument("--no-apkg", action="store_true", help="Only write the TSV")
-    parser.add_argument("--template", default=str(here / "template.txt"),
+    parser.add_argument("--template", default=str(here / "card_template.txt"),
                         help="anki.txt with the card templates")
     parser.add_argument("--max-def", type=int, default=5, help="Max definitions per word")
+    parser.add_argument("--min-char", type=int, default=5, help="Minimum characters in a Tatoeba sentence to be used as an example")
+    parser.add_argument("--max-sent", type=int, default=3, help="Max number of Tatoeba sentences")
+
     args = parser.parse_args()
 
     # Check that input and ooutput exist
@@ -492,6 +495,7 @@ def main():
 
     # Build a note for each word in the csv. 
     notes, new_words = [], []
+
     for idx, row in data.iterrows():
         word = clean_query(row[column_name])
         if word is None:
@@ -502,7 +506,7 @@ def main():
             continue
 
         try:
-            note = build_note(row, media_dir, column_name, number, column_name ,args.max_def)
+            note = build_note(row, media_dir, column_name, column_name ,args.max_def, args.min_char, args.max_sent)
         except Exception as e:
             print(f"Warning: row {idx + 2} ('{row.get(column_name)}') failed ({e}); skipped.")
             continue
@@ -535,7 +539,6 @@ def main():
             print(f"Added {len(new_words)} words to memory file {memory_path}")
         else:
             print("Memory file NOT updated because the .apkg could not be created.")
-
 
 
 if __name__ == "__main__":
