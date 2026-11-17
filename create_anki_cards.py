@@ -49,13 +49,39 @@ def hanzi_count(text):
     "Counts number of chinese characters in a string"
     return sum(is_hanzi(c) for c in text)
 
-def to_html(value):
+def format_usage(pairs):
     """
-    If the user already supplied HTML (contains a tag), keep it untouched.
+    Format example sentences so chinese and english are together.
     """
-    if re.search(r"<[a-zA-Z/]", value):
-        return value
-    return html.escape(value).replace("\n", "<br>")
+    return "<br><br>".join(
+        html.escape(zh) + (f"<br><span class='comment'>{html.escape(en)}</span>" if en else "")
+        for zh, en in pairs)
+
+def is_chinese_piece(text):
+    """A piece counts as Chinese if it has at least one hanzi and no more latin letters than hanzi."""
+    n = hanzi_count(text)
+    return n > 0 and n >= len(re.findall(r"[A-Za-z]", text))
+
+def user_phrases_html(text, word=""):
+    """
+    User-supplied sentences, separated by ';' (the fullwidth '；' and newlines also work).
+    Sentences should be ordered in pairs: chinese 1; english 1; chinese 2; english 2...
+    If not, only that sentence is affected, the rest are still groupped. 
+    """
+    pieces = [p.strip() for p in re.split(r"[;；\n]", text) if p.strip()]
+    pairs = []  
+    for p in pieces:
+        if is_chinese_piece(p):
+            if pairs and not pairs[-1][1]:
+                print(f"Warning: '{word}': no translation found for '{pairs[-1][0]}'")
+            pairs.append([p, ""])
+        elif pairs:
+            pairs[-1][1] = pairs[-1][1] + "; " + p if pairs[-1][1] else p
+        else:
+            print(f"Warning: '{word}': text before the first Chinese sentence ignored: '{p}'")
+    if pairs and not pairs[-1][1]:
+        print(f"Warning: '{word}': no translation found for '{pairs[-1][0]}'")
+    return format_usage([tuple(x) for x in pairs])
 
 @lru_cache(maxsize=None)
 def get_pinyin_engine():
@@ -220,7 +246,7 @@ def split_definitions(text):
 # Building the Anki note
 # --------------------------------------------------------------------------
 
-def audio_tag(word, media_dir, base_dir):
+def audio_tag(word, media_dir):
     """
     Check if a sound file exists in the media directory and if not generates it. 
     """ 
@@ -231,23 +257,22 @@ def audio_tag(word, media_dir, base_dir):
         get_audio(word, str(dest))
     return f"[sound:{name}]"
 
-def build_note(row, media_dir, base_dir, column_name, max_def=5, prev_words = []):
+def build_note(row, media_dir, column_name, max_def=5):
     # 1st make sure that we have a word. 
     word = clean_query(row[column_name])
     if word is None:
         return None
     
-    if word in prev_words:
-        print(f"Skipping {word} because it has already been generated.")
-        return None 
-
     # 2nd get pinyin & color 
 
     syllables = computed_syllables(word)          
     pinyin_field = pinyin_html(syllables)
  
     # 3rd get definitions 
-    entry = get_cedict().get_entry(word)
+    try:
+        entry = get_cedict().get_entry(word)
+    except KeyError:
+        entry = None
 
     if not entry:
         print(f"Warning: '{word}' not found in CC-CEDICT.")
@@ -264,7 +289,7 @@ def build_note(row, media_dir, base_dir, column_name, max_def=5, prev_words = []
  
     # 4th get audio 
     try:
-        sound = audio_tag(word, media_dir, base_dir)
+        sound = audio_tag(word, media_dir)
     except Exception as e:
         print(f"Warning: no audio for '{word}' ({e}).")
         sound = ""
@@ -272,16 +297,14 @@ def build_note(row, media_dir, base_dir, column_name, max_def=5, prev_words = []
     # 5th get example sentences
     given_phrase = clean_query(row.get("Phrase"))
     if given_phrase:
-        usage = to_html(given_phrase)
+        usage = user_phrases_html(given_phrase, word)
     else:
         try:
             sents = get_sentences(word)
         except Exception as e:
             print(f"Warning: no sentences for '{word}' ({e}).")
             sents = []
-        usage = "<br><br>".join(
-            f"{html.escape(s['zh'])}<br><span class='comment'>{html.escape(s['en'][0])}</span>"
-            for s in sents)
+        usage = format_usage([(s["zh"], s["en"][0]) for s in sents])
  
     return {
         "Hanzi": html.escape(word),
@@ -348,7 +371,7 @@ def write_apkg(notes, path, deck, notetype, template_path, media_dir, tags):
         import genanki
     except ImportError:
         print("Error: --apkg needs genanki (pip install genanki). The TSV was still written.")
-        return
+        return False
     front, back, css = parse_template(template_path)
     model = genanki.Model(
         MODEL_ID, notetype,
@@ -369,6 +392,39 @@ def write_apkg(notes, path, deck, notetype, template_path, media_dir, tags):
     package = genanki.Package(deck_obj)
     package.media_files = sorted(media)
     package.write_to_file(path)
+    return True
+
+# --------------------------------------------------------------------------
+# Memory: words that were already generated in previous runs
+# --------------------------------------------------------------------------
+
+MEMORY_COLUMN = "Word"
+
+def load_memory(path):
+    """
+    Read the memory CSV. Returns (set of known words, dataframe, name of the word column).
+    A missing or empty file is fine: it just means nothing is known yet.
+    Any other read problem raises, so we never overwrite a file we couldn't understand.
+    """
+    empty = pd.DataFrame(columns=[MEMORY_COLUMN])
+    if not path.is_file():
+        print(f"Warning: memory file '{path}' does not exist, it will be created.")
+        return set(), empty, MEMORY_COLUMN
+    try:
+        df = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
+    except pd.errors.EmptyDataError:
+        return set(), empty, MEMORY_COLUMN
+
+    # Use the "Word" column, or the first column if the file has no such header
+    col = MEMORY_COLUMN if MEMORY_COLUMN in df.columns else df.columns[0]
+    words = {w.strip() for w in df[col] if w.strip()}
+    return words, df, col
+
+def save_memory(path, df, col, new_words):
+    """Append the new words to the memory file (other columns are kept, left empty)."""
+    new_rows = pd.DataFrame({col: new_words})
+    out = new_rows if df.empty else pd.concat([df, new_rows], ignore_index=True).fillna("")
+    out.to_csv(path, index=False, encoding="utf-8")
 
 # --------------------------------------------------------------------------
 
@@ -380,7 +436,7 @@ def main():
                         help="CSV file with a Word column (and optional extra columns)")
     parser.add_argument("-o", "--output", default=str(here), help="Output directory")
     parser.add_argument("-c", "--column", default="Word", help="Name of the column that contains the characters.")
-    parser.add_argument("-m", "--memory", default=None, help="CSV file containing previously included words. If it does not exist it will be created.")
+    parser.add_argument("-m", "--memory", default=None, help="CSV file (a 'Word' column) with words generated in previous runs. They are skipped, and the new words are appended at the end. Created if it does not exist.")
     parser.add_argument("--deck", default="Chinese Vocabulary",
                         help="Deck name. Use the SAME name for every package to merge them")
     parser.add_argument("--notetype", default=DEFAULT_NOTETYPE, help="Note type name")
@@ -409,17 +465,17 @@ def main():
         return
 
     # Check that the memory file exist
-    if memory is not None:
-        if memory.is_file():
-            try:
-                memory_file = pd.read_csv(memory, dtype=str)
-            except Exception as e:
-                print(f"Error: Memory file could not be read as CSV ({e})")
+    memory_path = Path(args.memory) if args.memory else None
+    known_words, memory_df, memory_col = set(), None, MEMORY_COLUMN
+    if memory_path is not None:
+        if not memory_path.resolve().parent.is_dir():
+            print(f"Error: the folder of the memory file '{memory_path}' does not exist.")
             return
-
-        else:
-            print(f"Warning: memory file {memory} does not exist, it will be created.")
-            
+        try:
+            known_words, memory_df, memory_col = load_memory(memory_path)
+        except Exception as e:
+            print(f"Error: Memory file could not be read as CSV ({e})")
+            return
 
     # That it contains the required column
     if column_name not in data.columns:
@@ -435,29 +491,50 @@ def main():
     media_dir.mkdir(exist_ok=True)
 
     # Build a note for each word in the csv. 
-    notes, number = [], args.start_number
+    notes, new_words = [], []
     for idx, row in data.iterrows():
+        word = clean_query(row[column_name])
+        if word is None:
+            continue
+
+        if word in known_words:
+            print(f"Skipping '{word}': it has already been generated.")
+            continue
+
         try:
-            note = build_note(row, media_dir, input_file.resolve().parent, number, column_name ,args.max_def)
+            note = build_note(row, media_dir, column_name, number, column_name ,args.max_def)
         except Exception as e:
             print(f"Warning: row {idx + 2} ('{row.get(column_name)}') failed ({e}); skipped.")
             continue
         if note:
             notes.append(note)
-            number += 1
- 
+            new_words.append(word)
+            known_words.add(word)
+
+    if not notes:
+        print("No new words to generate. Nothing was written.")
+        return
+
     # Output files are named after the input so several batches don't overwrite each other
     stem = input_file.stem
     tsv_path = output_dir / f"{stem}_anki_import.txt"
     write_tsv(notes, tsv_path, args.notetype, args.deck)
     print(f"Wrote {len(notes)} notes to {tsv_path} (next free Number: {number})")
- 
+
+    packaged = True
     if not args.no_apkg:
         apkg_path = output_dir / f"{stem}.apkg"
-        write_apkg(notes, apkg_path, args.deck, args.notetype,
+        packaged = write_apkg(notes, apkg_path, args.deck, args.notetype,
                    args.template, media_dir, [t.replace(" ", "_") for t in args.tags])
-        print(f"Wrote {apkg_path}")
+        if packaged:    
+            print(f"Wrote {apkg_path}")
 
+    if memory_path is not None:
+        if packaged:
+            save_memory(memory_path, memory_df, memory_col, new_words)
+            print(f"Added {len(new_words)} words to memory file {memory_path}")
+        else:
+            print("Memory file NOT updated because the .apkg could not be created.")
 
 
 
