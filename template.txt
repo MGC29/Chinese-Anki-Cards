@@ -1,0 +1,84 @@
+## Front Template
+```html
+<div class=tags>{{Deck}}</div><br>
+
+<span class=chinese>{{Hanzi}}</span><br><br>
+
+<div class=reading>{{hint:Pinyin}}</div><br>
+
+```
+## Back Template
+```html
+<div class=tags>{{Deck}} </div><br>
+
+<div class=chinese>{{Ruby}}</div><br>
+<div class=reading>{{Pinyin}}</div><br>
+<div>{{English}}</div><br>
+
+
+{{#Classifier}}<div><span class=comment>Classifier:</span> <span class=chinesenote> {{Classifier}}</span></div>{{/Classifier}}
+{{#Also Written}}<div><span class=comment>Also written:</span><span class=chinesenote> {{Also Written}}</span></div>{{/Also Written}}
+{{#Frequency}}<div><span class=comment>Frequency:</span>{{Frequency}}</div>{{/Frequency}}<br>
+{{Sound}}
+<br><br>
+
+
+{{#Usage}}
+<br>
+<div style="font-family: arial; font-size: 25px;">{{Usage}}</div>
+{{/Usage}}
+
+```
+## Styling
+```css
+.card {
+font-family: arial;
+font-size: 21px;
+text-align: center;
+color: black;
+background-color: white;
+}
+.card { word-wrap: break-word; }
+.win .chinese { font-family: "SimSun", "ＭＳ 明朝"; }
+.mac .chinese { }
+.linux .chinese { font-family: "Kochi Mincho", "東風明朝"; }
+.mobile .chinese { font-family: "Hiragino Mincho ProN"; }
+.chinese { font-size: 55px;}
+.reading { font-size: 25px;}
+.comment {font-size: 21px; color:grey;}
+.tags {color:gray;text-align:center;font-size:10pt;}
+.note {color:gray;font-size:12pt;margin-top:20pt;}
+.hint {font-size:15pt;}
+
+.chinesenote { font-size: 30px;font-family: "SimSun", "ＭＳ 明朝"; }
+
+.tone1 {color: red;}
+.tone2 {color: orange;}
+.tone3 {color: green;}
+.tone4 {color: blue;}
+.tone5 {color: gray;}
+
+
+.nightMode .tone1 {color: #ff6666;}
+.nightMode .tone2 {color: #ffcc66;}
+.nightMode .tone3 {color: #66ff66;}
+.nightMode .tone4 {color: #33ccff;}
+.nightMode .tone5 {color: #d3d3d3;}
+
+
+#hintbutton {
+margin-top: 2em;
+font-size: 0.75em;
+width: 225px;
+height: 30px;
+background-color: lightgray;
+border: 1px outset ;
+}
+
+.nightMode #swag {
+color: white;
+}
+#swag {
+color: black;
+}
+```
