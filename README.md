@@ -8,7 +8,7 @@ Turn a simple CSV list of Chinese words into ready-to-import Anki flashcards, co
 .
 ├── create_anki_cards.py   # the script
 ├── environment.yml        # conda environment
-├── template.txt           # Anki card template and CSS
+├── card_template.txt           # Anki card template and CSS
 ├── example.csv            # example input
 ├── memory.csv             # example memory file
 └── README.md
@@ -31,10 +31,10 @@ conda activate anki-cards
 Run the script on the included example:
 
 ```bash
-python create_anki_cards.py -i example.csv
+python create_anki_cards.py -i Example/example.csv -o Example
 ```
 
-This will creatre in the script's folder:
+This will create in the script's folder:
 
 - `example_anki_import.txt`: Anki text-import file
 - `example.apkg`: Anki package (double-click it, or use *File → Import* in Anki)

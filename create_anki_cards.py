@@ -257,6 +257,7 @@ def audio_tag(word, media_dir):
         get_audio(word, str(dest))
     return f"[sound:{name}]"
 
+
 def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=3):
     # 1st make sure that we have a word. 
     word = clean_query(row[column_name])
@@ -485,7 +486,7 @@ def main():
         print(f"Error: Characters to search must be under the {column_name} column.")
         return
         
-    skipped = [c for c in data.columns if c != column_name]
+    skipped = [c for c in data.columns if c not in [column_name, "Definition", "Phrase"]]
     if skipped:
         print("Warning: columns " + ", ".join(skipped) + " will be skipped.")
  
@@ -506,7 +507,7 @@ def main():
             continue
 
         try:
-            note = build_note(row, media_dir, column_name, column_name ,args.max_def, args.min_char, args.max_sent)
+            note = build_note(row, media_dir, column_name ,args.max_def, args.min_char, args.max_sent)
         except Exception as e:
             print(f"Warning: row {idx + 2} ('{row.get(column_name)}') failed ({e}); skipped.")
             continue
@@ -523,7 +524,7 @@ def main():
     stem = input_file.stem
     tsv_path = output_dir / f"{stem}_anki_import.txt"
     write_tsv(notes, tsv_path, args.notetype, args.deck)
-    print(f"Wrote {len(notes)} notes to {tsv_path} (next free Number: {number})")
+    print(f"Wrote {len(notes)} notes to {tsv_path}")
 
     packaged = True
     if not args.no_apkg:
