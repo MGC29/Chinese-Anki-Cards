@@ -33,7 +33,7 @@ You can try the script on the included example:
 ```bash
 python create_anki_cards.py -i Example/example.csv -o Example/
 ```
-For more options please chech [Parameters](#parameters).
+For more options please check [Parameters](#parameters).
 
 This will create:
 
@@ -68,6 +68,7 @@ The program takes the following parameters:
 | `--deck`              | `Chinese Vocabulary`    | Deck name. Use the **same** name every time to merge batches into one deck. |
 | `--notetype`          | `Xines`                 | Name of the Anki note type. |
 | `--tags`              |  `None`                    | Tags added to every note, e.g. `--tags Unit 1`. Spaces within a tag become underscores. |
+| `--template`              |  `card_template.txt` | Template for the anki cards. |
 | `--no-apkg`           | off                     | Only write the text-import file, skip the `.apkg`. |in the same directory as the script | File with the card template. |
 | `--max-def`           | `5`                     | Maximum number of CC-CEDICT definitions per word. |
 | `--min-char`           | `5`                     | Minimum characters in a Tatoeba sentence to be used as an example. |
@@ -75,11 +76,11 @@ The program takes the following parameters:
 
 ## Card template
 
-The `.apkg` is built from `template.txt`, a Markdown file with three sections, `Front Template`, `Back Template` and `Styling`, that detail the appearance of the card when imported into Anki.
+The `.apkg` is built from `card_template.txt`, a Markdown file with three sections, `Front Template`, `Back Template` and `Styling`, that detail the appearance of the card when imported into Anki.
 
-You can use your own templates as long as they use the fields: `Hanzi`, `Color`, `Pinyin`, `Ruby`, `English`, `Classifier`, `Sound`, `Usage`. Any other field wil be removed automatically, since Anki shows an error on cards that use non-existent fields.
+You can use your own templates as long as they use the fields: `Hanzi`, `Color`, `Pinyin`, `Ruby`, `English`, `Classifier`, `Sound`, `Usage`. Any other field will be removed automatically, since Anki shows an error on cards that use non-existent fields.
 
-Additioally, the generated HTML relies on CSS classes, `tone1` to `tone5` and `comment` which must be defined in the styling block.
+Additionally, the generated HTML relies on CSS classes, `tone1` to `tone5` and `comment` which must be defined in the styling block.
 
 ## Other considerations
 
