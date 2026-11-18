@@ -17,7 +17,8 @@ import pandas as pd
 import pinyin_jyutping
 import requests
 from pycccedict.cccedict import CcCedict
- 
+from tqdm import tqdm
+
 jieba.setLogLevel(logging.WARNING)
 
 
@@ -32,6 +33,12 @@ MODEL_ID = 1607392319
 # --------------------------------------------------------------------------
 # Helper functions 
 # --------------------------------------------------------------------------
+
+def warn(msg):
+    """
+    Print a warning without breaking the progress bar's line.
+    """
+    tqdm.write(f"Warning: {msg}")
 
 def clean_query(value):
     """
@@ -73,14 +80,14 @@ def user_phrases_html(text, word=""):
     for p in pieces:
         if is_chinese_piece(p):
             if pairs and not pairs[-1][1]:
-                print(f"Warning: '{word}': no translation found for '{pairs[-1][0]}'")
+                warn(f"'{word}': no translation found for '{pairs[-1][0]}'")
             pairs.append([p, ""])
         elif pairs:
             pairs[-1][1] = pairs[-1][1] + "; " + p if pairs[-1][1] else p
         else:
-            print(f"Warning: '{word}': text before the first Chinese sentence ignored: '{p}'")
+            warn(f"'{word}': text before the first Chinese sentence ignored: '{p}'")
     if pairs and not pairs[-1][1]:
-        print(f"Warning: '{word}': no translation found for '{pairs[-1][0]}'")
+        warn(f"'{word}': no translation found for '{pairs[-1][0]}'")
     return format_usage([tuple(x) for x in pairs])
 
 @lru_cache(maxsize=None)
@@ -276,7 +283,7 @@ def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=
         entry = None
 
     if not entry:
-        print(f"Warning: '{word}' not found in CC-CEDICT.")
+        warn(f"'{word}' not found in CC-CEDICT.")
     
     raw_defs = (entry or {}).get("definitions", [])
     classifiers = [d[3:] for d in raw_defs if d.startswith("CL:")]
@@ -292,7 +299,7 @@ def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=
     try:
         sound = audio_tag(word, media_dir)
     except Exception as e:
-        print(f"Warning: no audio for '{word}' ({e}).")
+        warn(f"no audio for '{word}' ({e}).")
         sound = ""
  
     # 5th get example sentences
@@ -303,7 +310,7 @@ def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=
         try:
             sents = get_sentences(word, min_chars=min_chars, max_results=max_results)
         except Exception as e:
-            print(f"Warning: no sentences for '{word}' ({e}).")
+            warn(f"no sentences for '{word}' ({e}).")
             sents = []
         usage = format_usage([(s["zh"], s["en"][0]) for s in sents])
  
@@ -497,19 +504,24 @@ def main():
     # Build a note for each word in the csv. 
     notes, new_words = [], []
 
-    for idx, row in data.iterrows():
+    rows = list(data.iterrows())
+    bar = tqdm(rows, desc="Building cards", unit="word")
+
+    for idx, row in bar:
         word = clean_query(row[column_name])
         if word is None:
             continue
 
+        bar.set_postfix_str(word)
+
         if word in known_words:
-            print(f"Skipping '{word}': it has already been generated.")
+            tqdm.write(f"Skipping '{word}': it has already been generated.")
             continue
 
         try:
             note = build_note(row, media_dir, column_name ,args.max_def, args.min_char, args.max_sent)
         except Exception as e:
-            print(f"Warning: row {idx + 2} ('{row.get(column_name)}') failed ({e}); skipped.")
+            warn(f"row {idx + 2} ('{row.get(column_name)}') failed ({e}); skipped.")
             continue
         if note:
             notes.append(note)
