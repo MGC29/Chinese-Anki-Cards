@@ -452,7 +452,7 @@ def main():
 
     args = parser.parse_args()
 
-    # Check that input and ooutput exist
+    # Check that input and output exist
     input_file, output_dir, column_name = Path(args.input), Path(args.output), args.column
     if not input_file.is_file():
         print(f"Error: Input file '{input_file}' does not exist.")
