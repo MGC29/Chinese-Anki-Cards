@@ -265,18 +265,23 @@ def audio_tag(word, media_dir):
     return f"[sound:{name}]"
 
 
-def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=3):
+def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=3, bar=None):
+    def step(label):
+        if bar is not None:
+            bar.set_postfix_str(f"{word}: {label}")
+
     # 1st make sure that we have a word. 
     word = clean_query(row[column_name])
     if word is None:
         return None
     
     # 2nd get pinyin & color 
-
+    step("Pinyin")
     syllables = computed_syllables(word)          
     pinyin_field = pinyin_html(syllables)
  
     # 3rd get definitions 
+    step("Definitions")
     try:
         entry = get_cedict().get_entry(word)
     except KeyError:
@@ -296,6 +301,7 @@ def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=
         english = "<br>".join(html.escape(d) for d in meanings[:max_def])
  
     # 4th get audio 
+    step("Audio")
     try:
         sound = audio_tag(word, media_dir)
     except Exception as e:
@@ -303,6 +309,8 @@ def build_note(row, media_dir, column_name, max_def=5, min_chars=5, max_results=
         sound = ""
  
     # 5th get example sentences
+    step("Sentences")
+
     given_phrase = clean_query(row.get("Phrase"))
     if given_phrase:
         usage = user_phrases_html(given_phrase, word)
@@ -519,7 +527,7 @@ def main():
             continue
 
         try:
-            note = build_note(row, media_dir, column_name ,args.max_def, args.min_char, args.max_sent)
+            note = build_note(row, media_dir, column_name ,args.max_def, args.min_char, args.max_sent, bar=bar)
         except Exception as e:
             warn(f"row {idx + 2} ('{row.get(column_name)}') failed ({e}); skipped.")
             continue
